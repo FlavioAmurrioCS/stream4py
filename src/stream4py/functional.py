@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import functools
 import itertools
+import json
 from collections import defaultdict
 from collections.abc import Iterable
+from collections.abc import Mapping
 from collections.abc import Sized
 from itertools import islice
 from typing import TYPE_CHECKING
@@ -20,6 +22,7 @@ if TYPE_CHECKING:
     from typing import Callable
     from typing import TextIO
 
+    from _typeshed import Incomplete
     from _typeshed import SupportsRichComparison
     from _typeshed import SupportsRichComparisonT
     from typing_extensions import TypeGuard
@@ -566,6 +569,123 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
 
         return cls(gen())
 
+    @classmethod
+    def open(cls, file: str) -> Stream[str]:
+        """
+        Opens a file and returns a Stream of its lines.
+
+        Parameters
+        ----------
+            file (str): The path to the file to be opened.
+
+        Returns
+        -------
+            Stream[str]: A Stream of lines from the file.
+
+        """
+        return cls.from_io(open(file, encoding="utf-8", errors="ignore"))
+
+    @classmethod
+    def open_binary(cls, file: str) -> Stream[bytes]:
+        """
+        Opens a binary file and returns a Stream of its lines.
+
+        Parameters
+        ----------
+            file (str): The path to the binary file to be opened.
+
+        Returns
+        -------
+            Stream[bytes]: A Stream of lines from the binary file.
+
+        """
+        return cls.from_io(open(file, mode="rb"))
+
+    def to_file(self: Stream[str], file: str) -> None:
+        """
+        Writes the contents of the stream to a file.
+        Line separators are not added, so it is usual for each of the lines
+        provided to have a line separator at the end.
+
+        Parameters
+        ----------
+            file (str): The path to the file where the contents of the stream will be written.
+
+        Returns
+        -------
+            None
+
+        """
+        with open(file, mode="w", encoding="utf-8", errors="ignore") as f:
+            f.writelines(self)
+
+    def to_csv(self: Stream[Mapping[str, Any]], file: str) -> None:
+        """
+        Writes the contents of the stream to a CSV file.
+
+        Parameters
+        ----------
+            file (str): The path to the CSV file where the contents of the stream will be written.
+
+        Returns
+        -------
+            None
+
+        """
+        import csv
+
+        items = iter(self)
+        first = next(items, None)
+        if first is None:
+            return
+        with open(file, mode="w") as f:
+            writer = csv.DictWriter(f, fieldnames=first.keys())
+            writer.writeheader()
+            writer.writerow(first)
+            writer.writerows(items)
+
+    @classmethod
+    def open_csv(cls, file: str) -> Stream[dict[str, str]]:
+        """
+        Opens a CSV file and returns a Stream of its rows as dictionaries.
+
+        Parameters
+        ----------
+            file (str): The path to the CSV file to be opened.
+
+        Returns
+        -------
+            Stream[dict[str, str]]: A Stream of rows from the CSV file as dictionaries.
+
+        """
+        import csv
+
+        def gen() -> Iterable[dict[str, str]]:
+            with open(file) as f:
+                reader = csv.DictReader(f)
+                yield from reader
+
+        return cls(gen())  # type: ignore[return-value, arg-type]
+
+    @classmethod
+    def open_jsonl(cls, file: str) -> Stream[Incomplete]:
+        """
+        Opens a JSON Lines (JSONL) file and returns a stream of parsed JSON objects.
+        TIP: Make use of typing_cast to specify the type of the items in the stream.
+
+        Args:
+            file (str): The path to the JSONL file to open.
+
+        Returns:
+            Stream[Incomplete]: A stream where each item is a parsed JSON object from a line in the
+            file.
+
+        Raises:
+            FileNotFoundError: If the specified file does not exist.
+            json.JSONDecodeError: If a line in the file is not valid JSON.
+        """
+        return cls.open(file).map(json.loads)
+
     @staticmethod
     def __sections_helper(
         items: Iterable[_U], predicate: Callable[[_U], object]
@@ -979,4 +1099,4 @@ if __name__ == "__main__":
         # for i in Stream.range(0, 10).map(lambda x: x).reverse():
         #     print(i)
 
-    # main()
+    main()
