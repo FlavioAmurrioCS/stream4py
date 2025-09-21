@@ -13,6 +13,7 @@ A Python library inspired by **Java Streams**, **Haskell lists**, and **Linux pi
 
 * Lazy and eager evaluation methods.
 * Chainable operations like `map`, `filter`, `flat_map`, `unique`, `enumerate`, `flatten`, `sections`.
+* **File I/O operations** including text files, binary files, CSV, and JSON Lines (JSONL).
 * File parsing and subprocess piping with `from_io` and `pipe`.
 * Collection helpers like `to_list`, `to_dict`, `to_set`, and `cache`.
 * Built-in itertools utilities (`islice`, `zip_longest`, `accumulate`, etc.).
@@ -48,12 +49,104 @@ result = (
 # Convert to list (triggers evaluation)
 print(result.to_list())  # [20, 40]
 
+# File I/O operations
+Stream.open("data.txt").filter(lambda x: "error" in x).for_each(print)
+Stream([{"name": "Alice", "age": 30}]).to_csv("output.csv")
+users = Stream.open_csv("users.csv").map(lambda row: row["name"])
+
 # Stream lines from a file
 lines = Stream.from_io(open("file.txt"))
 lines.filter(lambda x: "error" in x).for_each(print)
 
 # Subprocess streaming
 Stream.subprocess_run(("seq", "100")).pipe(("grep", "1")).for_each(print)
+```
+
+---
+
+## File I/O Operations
+
+Stream4Py provides convenient methods for working with various file formats:
+
+### Text Files
+
+```python
+# Reading text files
+content = Stream.open("input.txt").to_list()
+
+# Writing text files
+Stream(["line 1\n", "line 2\n"]).to_file("output.txt")
+
+# Processing large files lazily
+(Stream.open("large_file.txt")
+    .filter(lambda line: "ERROR" in line)
+    .map(str.upper)
+    .to_file("errors.txt"))
+```
+
+### Binary Files
+
+```python
+# Reading binary files
+binary_data = Stream.open_binary("data.bin").to_list()
+
+# Processing binary content
+(Stream.open_binary("image.jpg")
+    .take(1024)  # First 1KB
+    .to_list())
+```
+
+### CSV Files
+
+```python
+# Reading CSV files as dictionaries
+users = Stream.open_csv("users.csv")
+adult_names = users.filter(lambda row: int(row["age"]) >= 18).map(lambda row: row["name"])
+
+# Writing CSV files from dictionaries
+data = [
+    {"name": "Alice", "age": 30, "city": "New York"},
+    {"name": "Bob", "age": 25, "city": "London"}
+]
+Stream(data).to_csv("output.csv")
+
+# Processing large CSV files efficiently
+(Stream.open_csv("large_dataset.csv")
+    .filter(lambda row: row["status"] == "active")
+    .map(lambda row: {"id": row["id"], "score": float(row["score"]) * 1.1})
+    .to_csv("processed.csv"))
+```
+
+### JSON Lines (JSONL) Files
+
+```python
+# Reading JSONL files
+events = Stream.open_jsonl("events.jsonl")
+user_events = events.filter(lambda obj: obj["type"] == "user_action")
+
+# Type casting for better type hints
+from typing import TypedDict
+
+class Event(TypedDict):
+    type: str
+    user_id: int
+    timestamp: str
+
+typed_events = Stream.open_jsonl("events.jsonl").typing_cast(Event)
+```
+
+### Working with IO Objects
+
+```python
+import io
+
+# From StringIO
+content = io.StringIO("line1\nline2\nline3")
+lines = Stream.from_io(content).to_list()
+
+# From file handles (automatically closed)
+with open("data.txt") as f:
+    processed = Stream.from_io(f).map(str.strip).to_list()
 ```
 
 ---
@@ -98,6 +191,12 @@ Stream.subprocess_run(("seq", "100")).pipe(("grep", "1")).for_each(print)
 | `to_dict()`                           | Eager | Collect as dict (from tuples)           | `Stream([(1,'a')]).to_dict()`                |
 | `collect(func)`                       | Eager | Apply function to iterable              | `Stream([1,2]).collect(sum)`                 |
 | `from_io(io)`                         | Lazy  | Stream lines from file or binary IO     | `Stream.from_io(open('file.txt'))`           |
+| `open(file)`                          | Lazy  | Open and stream lines from text file    | `Stream.open('data.txt')`                    |
+| `open_binary(file)`                   | Lazy  | Open and stream lines from binary file  | `Stream.open_binary('data.bin')`             |
+| `open_csv(file)`                      | Lazy  | Open CSV file as stream of dictionaries | `Stream.open_csv('data.csv')`                |
+| `open_jsonl(file)`                    | Lazy  | Open JSONL file as stream of objects    | `Stream.open_jsonl('data.jsonl')`            |
+| `to_file(file)`                       | Eager | Write stream contents to text file      | `Stream(['line1\n']).to_file('out.txt')`     |
+| `to_csv(file)`                        | Eager | Write stream of dicts to CSV file       | `Stream([{'a':1}]).to_csv('out.csv')`        |
 | `sections(predicate)`                 | Lazy  | Split into sections based on predicate  | `Stream([1,1,2]).sections(lambda x:x==2)`    |
 | `range(start, stop, step=1)`          | Lazy  | Stream over a range                     | `Stream.range(1,5)`                          |
 
