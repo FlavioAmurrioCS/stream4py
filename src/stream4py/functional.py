@@ -13,10 +13,16 @@ from typing import Generic
 from typing import TypeVar
 from typing import overload
 
+from stream4py.http_utils import request
+from stream4py.lazy_utils import lazy_yield
+from stream4py.lazy_utils import lazy_yield_from
+
 if TYPE_CHECKING:
+    import re
     from collections.abc import Generator
     from collections.abc import Hashable
     from collections.abc import Iterator
+    from collections.abc import Mapping
     from typing import Any
     from typing import BinaryIO
     from typing import Callable
@@ -27,6 +33,11 @@ if TYPE_CHECKING:
     from _typeshed import SupportsRichComparisonT
     from typing_extensions import TypeGuard
     from typing_extensions import TypeIs
+    from typing_extensions import Unpack
+
+    from stream4py.http_utils import HTTP_METHOD
+    from stream4py.http_utils import JSON
+    from stream4py.http_utils import _CompleteRequestArgs
 
     _HashableT = TypeVar("_HashableT", bound=Hashable)
 
@@ -930,20 +941,30 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
         # Lazy
         return Stream(itertools.accumulate(self.__items, func, initial=initial))
 
-    def typing_cast(self, _: type[_U], /) -> Stream[_U]:
+    @overload
+    def typing_cast(self: Stream[Any], typ: type[_U]) -> Stream[_U]: ...
+    @overload
+    def typing_cast(self: Stream[Any], typ: str) -> Stream[Any]: ...
+    @overload
+    def typing_cast(self: Stream[Any], typ: object) -> Stream[Any]: ...
+
+    def typing_cast(self: Stream[Any], typ: type[_U] | str | object) -> Stream[_U] | Stream[Any]:  # noqa: ARG002
         """
-        Casts the items in the stream to the specified type.
+        Casts the elements of the stream to the specified type.
 
-        Parameters
-        ----------
-            _: The type to cast the items to.
+        Args:
+            typ (type[_U] | str | object): The type to cast the stream elements to. This can be a
+            type object, a string representing the type, or any object.
 
-        Returns
-        -------
-            Stream[_U]: A new stream with the items casted to the specified type.
+        Returns:
+            Stream[_U] | Stream[Any]: A new stream with elements cast to the specified type.
+            If casting is not possible, returns a stream with the original element types.
 
+        Note:
+            This method does not perform any runtime type checking or conversion; it only
+            changes the type annotation for static type checking purposes.
         """
-        return Stream(self.__items)  # type: ignore[arg-type]
+        return Stream(self.__items)
 
     def collect(self, func: Callable[[Iterable[_T_co]], _R]) -> _R:
         """
@@ -1049,6 +1070,34 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
         """
         return Stream(self.__subprocess_run(command, pipe_in=self.__items))
 
+    @staticmethod
+    def request_bytes(
+        url: str, *, method: HTTP_METHOD = "GET", **kwargs: Unpack[_CompleteRequestArgs]
+    ) -> Stream[bytes]:
+        lazy_request = lazy_yield_from()(request)
+        return Stream(lazy_request(url=url, method=method, **kwargs))
+
+    @staticmethod
+    def request_str(
+        url: str, *, method: HTTP_METHOD = "GET", **kwargs: Unpack[_CompleteRequestArgs]
+    ) -> Stream[str]:
+        return Stream.request_bytes(url=url, method=method, **kwargs).map(
+            lambda x: x.decode("utf-8")
+        )
+
+    @staticmethod
+    def request_json(
+        url: str, *, method: HTTP_METHOD = "GET", **kwargs: Unpack[_CompleteRequestArgs]
+    ) -> Stream[JSON]:
+        return Stream(lazy_yield()(lambda: json.load(request(url=url, method=method, **kwargs)))())
+
+    def re_search(self: Stream[str], pattern: re.Pattern[str] | str) -> Stream[re.Match[str]]:
+        if isinstance(pattern, str):
+            import re
+
+            pattern = re.compile(pattern)
+        return self.map(pattern.search).filter()
+
 
 if __name__ == "__main__":
 
@@ -1093,10 +1142,19 @@ if __name__ == "__main__":
         _37 = s.accumulate()
 
     def main() -> None:
-        Stream.subprocess_run(("seq", "10000")).pipe(("grep", "--color=always", "10")).for_each(
-            lambda x: print(x, end="")
-        )
+        # Stream.subprocess_run(("seq", "10000")).pipe(("grep", "--color=always", "10")).for_each(
+        #     lambda x: print(x, end="")
+        # )
         # for i in Stream.range(0, 10).map(lambda x: x).reverse():
         #     print(i)
+        Stream.request_json("https://httpbin.org/get").for_each(print)
+
+        (
+            Stream.request_str("https://pypi.org/simple/stream4py/")
+            .re_search(r'<a href="(?P<href>[^"]+)"[^>]*>(?P<name>[^<]+)</a>')
+            .map(lambda x: x.groupdict())
+            .take(5)
+            .for_each(print)
+        )
 
     main()
