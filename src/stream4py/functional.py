@@ -1,3 +1,4 @@
+# flake8: noqa: E501
 from __future__ import annotations
 
 import functools
@@ -116,7 +117,7 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
         -------
             Stream[_V]: A new stream containing only items that are instances of the specified class.
 
-        """  # noqa: E501
+        """
         # Lazy
         return Stream(x for x in self.__items if isinstance(x, cls))
 
@@ -257,7 +258,7 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
         -------
             Stream[tuple[_T_co, ...]]: A stream of batches, where each batch is a tuple of 'size' number of items.
 
-        """  # noqa: E501
+        """
         # Lazy
         items = iter(self.__items)
         return Stream(iter(lambda: tuple(islice(items, size)), ()))
@@ -333,7 +334,7 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
         ------
             TypeError: If the collection is empty and no default value is provided.
 
-        """  # noqa: E501
+        """
         # Eager
         return max(self.__items, key=key, **kwargs)
 
@@ -362,7 +363,7 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
         -------
         - A new Stream containing the sorted items.
 
-        """  # noqa: E501
+        """
         # Eager
         return Stream(sorted(self.__items, key=key, reverse=reverse))
 
@@ -409,7 +410,7 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
         -------
             The first item in the collection that satisfies the given function, or `NoItem` if no item is found.
 
-        """  # noqa: E501
+        """
         # Eager
         return next((item for item in self.__items if func(item)), NoItem)
 
@@ -437,7 +438,7 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
             True [2, 4]
             False [1, 3, 5].
 
-        """  # noqa: E501
+        """
         # Eager
         dct: dict[_HashableT, list[_T_co]] = defaultdict(list)
         for item in self.__items:
@@ -726,7 +727,7 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
             Stream[tuple[_T_co, ...]]: A Stream of tuples, where each tuple represents a section of consecutive elements
                 from the original Stream that satisfy the given predicate.
 
-        """  # noqa: E501
+        """
         # Lazy
         return Stream(self.__sections_helper(self.__items, predicate))
 
@@ -774,7 +775,7 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
         -------
             A new Stream object containing the remaining elements after the predicate becomes false.
 
-        """  # noqa: E501
+        """
         # Lazy
         return Stream(itertools.dropwhile(predicate, self.__items))
 
@@ -793,7 +794,7 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
             Stream[_T_co]: A new Stream containing elements from the original Stream that satisfy
                 the given predicate function.
 
-        """  # noqa: E501
+        """
         # Lazy
         return Stream(itertools.takewhile(predicate, self.__items))
 
@@ -839,7 +840,7 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
         -------
             Stream[tuple[_U, ...]]: A new stream containing tuples of the zipped elements.
 
-        """  # noqa: E501
+        """
         # Lazy
         return Stream(zip(self.__items, *iterables))
 
@@ -924,7 +925,7 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
         -------
             Stream[tuple[_U, ...]]: A new Stream object that iterates over tuples containing elements from the input iterables.
 
-        """  # noqa: E501
+        """
         # Lazy
         return Stream(itertools.zip_longest(self.__items, *iterables))
 
@@ -1052,7 +1053,7 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
         -------
             Stream[str]: A `Stream` object that represents the output of the command.
 
-        """  # noqa: E501
+        """
         return Stream(Stream.__subprocess_run(command))
 
     def pipe(self: Stream[str], command: tuple[str, ...]) -> Stream[str]:
@@ -1097,6 +1098,69 @@ class Stream(Iterable[_T_co], Sized, Generic[_T_co]):
 
             pattern = re.compile(pattern)
         return self.map(pattern.search).filter()
+
+    def extend(self: Stream[_T_co], items: Iterable[_T_co]) -> Stream[_T_co]:
+        """
+        Concatenates all elements in the stream into a single stream.
+
+        Returns
+        -------
+            Stream[_T_co]: A new stream containing all elements from the original stream.
+
+        """
+        return self.chain(items)
+
+    def append(self: Stream[_T], item: _T) -> Stream[_T]:
+        """
+        Appends an item to the end of the stream.
+
+        Returns
+        -------
+            Stream[_T]: A new stream containing all elements from the original stream and the appended item.
+
+        """
+        return self.chain((item,))
+
+    def prepend(self: Stream[_T], item: _T) -> Stream[_T]:
+        """
+        Prepends an item to the beginning of the stream.
+
+        Returns
+        -------
+            Stream[_T]: A new stream containing the prepended item and all elements from the original stream.
+
+        """
+        return Stream(itertools.chain((item,), self))
+
+    def count(self: Stream[_T], item: _T) -> int:
+        """
+        Counts the occurrences of a specific item in the stream.
+
+        Args:
+        ----
+            item (_T): The item to count in the stream.
+
+        Returns
+        -------
+            int: The number of occurrences of the specified item in the stream.
+
+        """
+        return sum(1 for x in self.__items if x == item)
+
+    def collect_and_continue(self, func: Callable[[Iterable[_T_co]], _R]) -> Stream[_R]:
+        """
+        Applies a function to the current stream's items, collects the result, and returns a new Stream containing the result.
+        Args:
+            func (Callable[[Iterable[_T_co]], _R]): A function that takes an iterable of the current stream's items and returns a result.
+        Returns:
+            Stream[_R]: A new Stream containing the result of applying the function.
+        Example:
+            >>> s = Stream([1, 2, 3])
+            >>> s.collect_and_continue(sum).to_list()
+            [6]
+        """
+
+        return Stream((func(self.__items),))
 
 
 if __name__ == "__main__":

@@ -176,6 +176,10 @@ with open("data.txt") as f:
 | `accumulate(func=None, initial=None)` | Lazy  | Cumulative sums or function             | `Stream([1,2,3]).accumulate()`               |
 | `subprocess_run(command)`             | Lazy  | Run a subprocess and stream output      | `Stream.subprocess_run(('ls',))`             |
 | `pipe(command)`                       | Lazy  | Pipe stream to subprocess               | `Stream(['foo']).pipe(('grep','f'))`         |
+| `re_search(pattern)`                  | Lazy  | Regex search, yields matches            | `Stream(["foo bar"]).re_search(r"foo")`      |
+| `extend(items)`                       | Lazy  | Concatenate another iterable            | `Stream([1,2]).extend([3,4])`                |
+| `append(item)`                        | Lazy  | Append an item to the end               | `Stream([1,2]).append(3)`                    |
+| `prepend(item)`                       | Lazy  | Prepend an item to the beginning        | `Stream([2,3]).prepend(1)`                   |
 | `sum(start=0)`                        | Eager | Sum all items                           | `Stream([1,2,3]).sum()`                      |
 | `min(key=None, default=None)`         | Eager | Minimum value                           | `Stream([1,2,3]).min()`                      |
 | `max(key=None, default=None)`         | Eager | Maximum value                           | `Stream([1,2,3]).max()`                      |
@@ -189,7 +193,9 @@ with open("data.txt") as f:
 | `to_tuple()`                          | Eager | Collect as tuple                        | `Stream([1,2]).to_tuple()`                   |
 | `to_set()`                            | Eager | Collect as set                          | `Stream([1,2]).to_set()`                     |
 | `to_dict()`                           | Eager | Collect as dict (from tuples)           | `Stream([(1,'a')]).to_dict()`                |
+| `count(item)`                         | Eager | Count occurrences of an item            | `Stream([1,2,2]).count(2)`                   |
 | `collect(func)`                       | Eager | Apply function to iterable              | `Stream([1,2]).collect(sum)`                 |
+| `collect_and_continue(func)`          | Eager | Collect result, continue as stream      | `Stream([1,2,3]).collect_and_continue(sum)`  |
 | `from_io(io)`                         | Lazy  | Stream lines from file or binary IO     | `Stream.from_io(open('file.txt'))`           |
 | `open(file)`                          | Lazy  | Open and stream lines from text file    | `Stream.open('data.txt')`                    |
 | `open_binary(file)`                   | Lazy  | Open and stream lines from binary file  | `Stream.open_binary('data.bin')`             |
